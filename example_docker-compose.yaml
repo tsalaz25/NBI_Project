@@ -1,0 +1,23 @@
+# Postgres 16 for local development.
+#   docker compose up -d --wait     start (and wait until healthy)
+#   docker compose stop             stop, keep data
+#   docker compose down -v          stop AND delete all data
+services:
+  db:
+    image: postgres:16
+    container_name: nbi-postgres
+    environment:
+      POSTGRES_DB: 
+      POSTGRES_USER:
+      POSTGRES_PASSWORD:
+    ports:
+      - "..."
+    volumes:
+      - nbi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["...", "pg_isready -U nbi -d nbi"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  nbi_pgdata:
