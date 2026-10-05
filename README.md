@@ -129,8 +129,47 @@ Test with Following Commands
 
 ### Phase 4: Bitemporality
 
+#### Tasks
+- Check `supersede` Col in `001_schema.sql`... The `event_report`
+- Write `003_queries.sql` and `test_queries.py`
+
+#### Tests
+From a Fresh Terminal, Run
+- `python3 -m venv .venv && source .venv/bin/activate`
+- `pip install -r requirements.txt`
+- `docker compose up -d --wait`
+- `python -m src.setup_db`
+- `python -m src.download --list 2024`
+- `python -m src.download` 
+- `python -m src.load` 
+
+Tests Commands
+1. Valid Time vs Transaction Time, Most Inspections shulde appear Twice: `docker compose exec -T db psql -U nbi -d nbi -c "SELECT reports, count(*) AS inspections FROM (SELECT event_id, count(*) AS reports FROM event_report GROUP BY event_id) t GROUP BY reports ORDER BY reports;"`
+2. One Inpection in 3 Reports with Correction: ` docker compose exec -T db psql -U nbi -d nbi -c "
+WITH pick AS (
+    SELECT asset_id, observed_at, component, old_reported_year, new_reported_year
+    FROM v_corrections
+    WHERE new_reported_year = 2010
+    ORDER BY new_value - old_value DESC
+    LIMIT 1
+)
+SELECT p.asset_id, p.observed_at, p.component, y.as_of,
+       a.value_numeric, a.value_from_report
+FROM pick p
+CROSS JOIN LATERAL (VALUES (p.old_reported_year - 1),
+                           (p.old_reported_year),
+                           (p.new_reported_year)) y(as_of)
+LEFT JOIN LATERAL (
+    SELECT * FROM measurement_as_of(y.as_of) a
+    WHERE a.asset_id = p.asset_id
+      AND a.observed_at = p.observed_at
+      AND a.component = p.component
+) a ON true
+ORDER BY y.as_of;" `
+3. One Current Val per Inspectoin and Method: `docker compose exec -T db psql -U nbi -d nbi -c "SELECT (SELECT count(*) FROM v_current_measurement) AS current_values, (SELECT count(DISTINCT (event_id, method_id)) FROM measurement) AS chains;"`
+4. Test Files: `python -m pytest tests/test_queries.py -k as_of -v` and `python -m pytest tests/test_parse.py tests/test_load.py tests/test_download.py -q`
+
+
 ### Phase 5: Survivial Analysis
 
 ### Phase 6: Performance 
-
-### Phase 7: VSC 
