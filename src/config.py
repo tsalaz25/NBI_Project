@@ -34,7 +34,7 @@ def db_settings(dbname : str | None = None) -> dict:
     )
 
 # SCOPE: NM has ~4000 bridges, 1992-2025 is full run of annual reports
-ATE = os.getenv("NBI_STATE", "NM").upper()
+STATE = os.getenv("NBI_STATE", "NM").upper()
 YEAR_START = int(os.getenv("NBI_YEAR_START", "1992"))
 YEAR_END = int(os.getenv("NBI_YEAR_END", "2025"))
 YEARS = list(range(YEAR_START, YEAR_END + 1))

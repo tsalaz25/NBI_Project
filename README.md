@@ -91,11 +91,41 @@ Run These Commands in Order (from beginning)
 - `curl -f -o data/raw/2009/NM09.txt https://www.fhwa.dot.gov/bridge/nbi/2009/delimited/NM09.txt`
 - `touch tests/__init__.py`
 - `printf "[pytest]\ntestpaths = tests\naddopts = -q\n" > pytest.ini`
-- `python -m pytest tests/test_parse.py -v`
+- Tester: `python -m pytest tests/test_parse.py -v`
 
 
 
-### Phase 3: Load in all Years
+### Phase 3: Load in All Years
+GOAL: Now that Parser works for both types of records, Load in Data from all 34 years
+
+#### Tasks
+- Write `download.py`, `queries/checks.sql` and `test_download.py`
+
+#### Tests
+Test with Following Commands
+- `python3 -m venv .venv && source .venv/bin/activate`
+- `pip install -r requirements.txt`
+- `docker compose up -d --wait`
+- `python -m src.setup_db`
+- `python -m src.download --list 2024`
+- `python -m src.download` (Takes a Few Minutes)
+- `ls data/raw | wc -l`
+- `python -m src.load` 
+* Look for `2009 -> 4594 Rows | 0 Malformed | 689 Route Under`, `2010 -> 3903 Rows | 0 Malformed | 0 Route Under` and `2024 -> 4035 Rows`
+- Table Checks
+1. `docker compose exec -T db psql -U nbi -d nbi -c "SELECT data_year, data_lines, rows_read, rows_malformed, rows_route_under, rows_rejected, rows_undated, events_new + events_rereported AS bridges, measures_corrected FROM ingest_run ORDER BY data_year;"`
+2. ` docker compose exec -T db psql -U nbi -d nbi -c "SELECT
+  (SELECT count(*) FROM ingest_run) AS years_loaded,
+  (SELECT count(*) FROM ingest_run WHERE data_lines <> rows_read + rows_malformed) AS lines_unaccounted,
+  (SELECT count(*) FROM ingest_run WHERE data_year >= 2010 AND rows_route_under > 0) AS route_under_after_2010,
+  (SELECT count(*) FROM ingest_run WHERE finished_at IS NULL) AS unfinished_runs;" `
+
+  Expect `years_loaded -> 34 | lines_uncounted -> 0 | route_under_after_2010 -> 0 | unfinshed_runs -> 0`
+
+  3. `docker compose exec -T db psql -U nbi -d nbi < queries/checks.sql`
+  - Tester: `python -m pytest tests/test_load.py tests/test_download.py -v`
+
+
 
 ### Phase 4: Bitemporality
 
