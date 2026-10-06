@@ -160,7 +160,7 @@ CROSS JOIN LATERAL (VALUES (p.old_reported_year - 1),
                            (p.old_reported_year),
                            (p.new_reported_year)) y(as_of)
 LEFT JOIN LATERAL (
-    SELECT * FROM measurement_as_of(y.as_of) a
+    SELECT * FROM measurement_as_of(y.as_of) a44
     WHERE a.asset_id = p.asset_id
       AND a.observed_at = p.observed_at
       AND a.component = p.component
@@ -172,4 +172,63 @@ ORDER BY y.as_of;" `
 
 ### Phase 5: Survivial Analysis
 
+**Right Censoring**
+>Right Censoring Problem: Survivial Analysis wants to know "When does a Bridge become Poor?" but most Brigdes gont become Poor while being wathced. A naive approace does 2 things wrong: (1) Throws them out making lifetimes short and (2) Treats Brigdes as 'didnt fail' ignoring that they might fail next year, making lifetime long. 
+
+>Right Censoring: When used correctly, we know that a Bridge that is heathy at X age X only imples "The Bridge lastes at least X years"
+
+**Kaplan-Meier**
+| Bridge | Event |
+| :--- | :--- |
+| A | Poor at 40 |
+| B | Last Seen Healty at 45 (Censored) |
+| C | Poor at 50 |
+| D | Last Seen Healty at 55 (Censored) |
+| E | Last Seen Healty at 60 (Censored) |
+
+>How it Works: Take 5 Bridges (above) for Example. K-M only updates Risk Sets at Failure Ages...
+
+>Row 1 -> 5 Briges at Risk, 1 Failure -> Survival = 4/5 = .80
+
+>Row 2 -> B Doesnt Fail -> No Changes
+
+>Row 3 -> 3 Still at Risk, A=Fail, B=Survived -> Survival = (.8)x2/3 = .53
+
+> And So On
+
+> Left Truncation: Data for this Project Satrts in 1992. A Bridge form 1935 1st appears at age 57. If we count the Risk Age for this Bridge from 0, the data is fills young ages with briges that were guarenteed to survive and Survivial Data is better than what it actuall is... The FIX is to use an `entry_age` that joins the `risk set` only from the age it was 1st seen. 
+
+**Question to Answer**
+1. Failure is when a Component Rating <= 4
+2. Time is Age in Years
+3. Clock Starts in the Year Built unless the component was rebuilt before the data was recorded
+4. Briges enter at the Age of 1st Inspection
+5. Censoring happens at the Last GOOD inspection
+6. If the state was POOR when 1st seen, Left Censor the Data
+7. Ignore Repairs after Failure
+8. If there is a Reconstructoin during Observation, Censor the Orginal at its Last Inspeciton before teh Rebuild
+9. Limitations: We only see failure at inspectoin so Real Failure happened bentween inspections. Name this Interval
+
+#### Tasks
+- Check `lifecycle` and `refresh_liefcycle` CTE's
+- Write `survivial.py`
+
+#### Tests
+- Check Plots in `reports` folder
+
+**Run Commands in This order**
+- `python3 -m venv .venv && source .venv/bin/activate`
+- `pip install -r requirements.txt`
+- `docker compose up -d --wait`
+- `python -m src.setup_db` 
+- `python -m src.load` (data should already be downloaded from previous Phases)
+- `docker compose exec -T db psql -U nbi -d nbi -c "\df"` (Check for 3 Rows)
+- `python -m src.survival` (takes about 30 seconds)
+- `open reports/km_superstructure.png`
+
+
 ### Phase 6: Performance 
+
+#### Tasks
+- Load Large Fixture's and Time them, Use `EXPLAIN ANALYZE` on Slow Ones
+- Write `benchmark.py` and `docs/perfromance.md`
